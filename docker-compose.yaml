@@ -38,12 +38,12 @@ services:
       cassandra:
         condition: service_healthy
     volumes:
-      - /etc/docker-compose/local-config.yaml:/etc/loki/local-config.yaml
+      - ./config:/etc/loki/
       - loki:/loki
     ports:
       - "3100:3100"
     restart: always
-    command: -config.file=/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/loki.yaml
     networks:
       loki:
         aliases:
