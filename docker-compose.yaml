@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  redis:
+    container_name: redis
+    image: redis:7.0.5-alpine
+    restart: always
+    environment:
+      ALLOW_EMPTY_PASSWORD: "yes"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command:
+      - 'redis-server'
+      - '--databases 1'
+      - '--save 900 1'
+      - '--save 300 10'
+      - '--save 60 10000'
+      - '--maxmemory 1gb'
+      - '--maxmemory-policy allkeys-lru'
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      loki:
+        aliases:
+          - redis
+
+  loki:
+    image: grafana/loki:2.3.0
+    container_name: loki
+    depends_on:
+      redis:
+        condition: service_healthy
+      cassandra:
+        condition: service_healthy
+    volumes:
+      - /etc/docker-compose/local-config.yaml:/etc/loki/local-config.yaml
+      - loki:/loki
+    ports:
+      - "3100:3100"
+    restart: always
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      loki:
+        aliases:
+          - loki
+
+  cassandra:
+    image: bitnami/cassandra:3.11.11
+    container_name: cassandra
+    volumes:
+      - cassandra:/bitnami
+    restart: always
+    healthcheck:
+      test: [ "CMD", "cqlsh", "-u", "cassandra", "-p", "cassandra", "-e", "SELECT table_name FROM system_schema.tables WHERE keyspace_name='loki';" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    environment:
+      CASSANDRA_USER: cassandra
+      CASSANDRA_PASSWORD: cassandra
+      CASSANDRA_CLUSTER_NAME: loki
+      CASSANDRA_DATACENTER: dc1
+    networks:
+      loki:
+        aliases:
+          - cassandra
+
+volumes:
+  cassandra:
+  loki:
+  redis_data:
+
+networks:
+  loki:
+    driver: bridge
